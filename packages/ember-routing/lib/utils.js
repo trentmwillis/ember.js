@@ -42,7 +42,11 @@ export function stashParamNames(router, handlerInfos) {
     handlerInfo._names = names;
 
     let route = handlerInfo.handler;
-    route._stashNames(handlerInfo, dynamicParent);
+    if (route) {
+      route._stashNames(handlerInfo, dynamicParent);
+    } else {
+      handlerInfo.handlerPromise.then((route) => route._stashNames(handlerInfo, dynamicParent));
+    }
   }
 
   handlerInfos._namesStashed = true;

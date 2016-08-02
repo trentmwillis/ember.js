@@ -58,10 +58,12 @@ export default Service.extend({
     let router = get(this, 'router');
     if (!router.router) { return; }
 
-    let visibleQueryParams = {};
-    assign(visibleQueryParams, queryParams);
+    let visibleQueryParams = assign({}, queryParams);
 
-    this.normalizeQueryParams(routeName, models, visibleQueryParams);
+    // If we're going to an engine, we skip normalizing query params
+    if (!router._engineInfoByRoute[routeName]) {
+      this.normalizeQueryParams(routeName, models, visibleQueryParams);
+    }
 
     let args = routeArgs(routeName, models, visibleQueryParams);
     return router.generate.apply(router, args);

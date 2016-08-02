@@ -708,10 +708,13 @@ const EmberRouter = EmberObject.extend(Evented, {
 
     let queryParams = {};
 
-    this._processActiveTransitionQueryParams(targetRouteName, models, queryParams, _queryParams);
+    // If we're going to an engine, we skip normalizing query params
+    if (!this._engineInfoByRoute[_targetRouteName]) {
+      this._processActiveTransitionQueryParams(targetRouteName, models, queryParams, _queryParams);
 
-    assign(queryParams, _queryParams);
-    this._prepareQueryParams(targetRouteName, models, queryParams);
+      assign(queryParams, _queryParams);
+      this._prepareQueryParams(targetRouteName, models, queryParams);
+    }
 
     let transitionArgs = routeArgs(targetRouteName, models, queryParams);
     let transition = this.router.transitionTo.apply(this.router, transitionArgs);
