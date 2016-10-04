@@ -1,7 +1,7 @@
 import { moduleFor, ApplicationTest } from '../../utils/test-case';
 import { strip } from '../../utils/abstract-test-case';
 import { compile } from '../../utils/helpers';
-import { Controller } from 'ember-runtime';
+import { Controller, RSVP } from 'ember-runtime';
 import { Engine } from 'ember-application';
 import { Route } from 'ember-routing';
 
@@ -12,7 +12,9 @@ moduleFor('Application test: engine rendering', class extends ApplicationTest {
     this.router.map(function() {
       this.mount('blog');
     });
-    this.application.register('route-map:blog', function() { });
+    this.application.register('route-map:blog', function() {
+      this.route('post');
+    });
     this.registerRoute('application', Route.extend({
       model() {
         hooks.push('application - application');
@@ -249,6 +251,51 @@ moduleFor('Application test: engine rendering', class extends ApplicationTest {
         'application - application',
         'engine - application'
       ], 'the expected hooks were fired');
+    });
+  }
+
+  // Verifies that _qp is not needed to calculate a URL
+  ['@test visit() with lazily loaded Routes works successfully'](assert) {
+    assert.expect(4);
+
+    let hooks = [];
+
+    this.setupAppAndRoutableEngine(hooks);
+
+    this.application.Router = this.application.Router.extend({
+      _getHandlerFunction() {
+        let getHandler = this._super(...arguments);
+        return (...args) => RSVP.resolve().then(() => getHandler(...args));
+      }
+    });
+
+    this.registerEngine('blog', Engine.extend({
+      init() {
+        this._super(...arguments);
+        // Important, renders a link to a route with lazy urls
+        this.register('template:application', compile(`Engine{{link-to 'Post' 'blog.post' (query-params foo='bar')}}{{outlet}}`));
+        this.register('route:application', Route.extend({
+          model() {
+            hooks.push('engine - application');
+          }
+        }));
+      }
+    }));
+
+    return this.visit('/blog?foo=bar').then(() => {
+      console.log('made it!');
+
+      let currentURL = this.applicationInstance.get('router.location').getURL();
+      this.assert.strictEqual(currentURL, '/blog?foo=bar');
+
+      this.assert.notEqual(this.element.querySelector('a').href.indexOf('?foo=bar'), -1);
+
+      this.assertText('ApplicationEnginePost');
+
+      this.assert.deepEqual(hooks, [
+        'application - application',
+        'engine - application'
+      ], 'the expected model hooks were fired');
     });
   }
 
