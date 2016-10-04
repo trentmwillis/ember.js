@@ -51,18 +51,40 @@ export default Service.extend({
     return transition;
   },
 
+  /**
+    Normalizes query params by preparing them the same way as when transitioning.
+
+    @method normalizeQueryParams
+    @param {String} routeName
+    @param {Array<Object>} models
+    @param {Object} queryParams
+    @return {Void} - mutates query params object
+    @private
+  */
   normalizeQueryParams(routeName, models, queryParams) {
     let router = get(this, 'router');
     router._prepareQueryParams(routeName, models, queryParams);
   },
 
+  /**
+    Generates a URL for the given route taking into account models for the
+    dynamic segments and query parameters.
+
+    @method generateURL
+    @param {String} routeName
+    @param {Array<Object>} models
+    @param {Object} queryParams
+    @return {String}
+    @public
+  */
   generateURL(routeName, models, queryParams) {
     let router = get(this, 'router');
+
     if (!router.router) { return; }
 
-    let visibleQueryParams = {};
-    assign(visibleQueryParams, queryParams);
+    let visibleQueryParams = assign({}, queryParams);
 
+    // mutates query params object
     this.normalizeQueryParams(routeName, models, visibleQueryParams);
 
     let args = routeArgs(routeName, models, visibleQueryParams);

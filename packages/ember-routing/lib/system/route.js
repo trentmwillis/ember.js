@@ -1,4 +1,4 @@
-import { assign, symbol, getOwner } from 'ember-utils';
+import { EmptyObject, assign, symbol, getOwner } from 'ember-utils';
 import {
   assert,
   info,
@@ -142,11 +142,16 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
   */
 
   /**
-    @private
+    The full name of the route, dot-delimited from the root of the application.
+    Ignores Engine boundaries.
 
-    @property _qp
+    @property fullRouteName
+    @for Ember.Route
+    @type String
+    @private
   */
-  _qp: computed(function() {
+
+  _storeQPMeta() {
     let controllerProto, combinedQueryParameterConfiguration;
 
     let controllerName = this.controllerName || this.routeName;
@@ -188,11 +193,6 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
 
       let desc = combinedQueryParameterConfiguration[propName];
       let scope = desc.scope || 'model';
-      let parts;
-
-      if (scope === 'controller') {
-        parts = [];
-      }
 
       let urlKey = desc.as || this.serializeQueryParamKey(propName);
       let defaultValue = get(controllerProto, propName);
@@ -215,12 +215,11 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
         urlKey: urlKey,
         prop: propName,
         scopedPropertyName: scopedPropertyName,
-        ctrl: controllerName,
+        controllerName: controllerName,
         route: this,
-        parts: parts, // provided later when stashNames is called if 'model' scope
-        values: null, // provided later when setup is called. no idea why.
         scope: scope,
-        prefix: ''
+        parts: scope === 'controller' ? [] : undefined, // provided later when stashNames is called if not 'controller' scope
+        values: null // provided later when setup is called. no idea why.
       };
 
       map[propName] = map[urlKey] = map[scopedPropertyName] = qp;
@@ -228,10 +227,10 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
       propertyNames.push(propName);
     }
 
-    return {
-      qps: qps,
-      map: map,
-      propertyNames: propertyNames,
+    this._bucketCache.stash('route::qp-meta', this.fullRouteName, {
+      qps,
+      map,
+      propertyNames,
       states: {
         /*
           Called when a query parameter changes in the URL, this route cares
@@ -242,6 +241,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
           let qp = map[prop];
           this._qpChanged(prop, value, qp);
         },
+
         /*
           Called when a query parameter changes in the URL, this route cares
           about that query parameter, and the route is currently
@@ -252,6 +252,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
           this._qpChanged(prop, value, qp);
           return this._activeQPChanged(map[prop], value);
         },
+
         /*
           Called when a value of a query parameter this route handles changes in a controller
           and the route is currently in the active route hierarchy.
@@ -262,7 +263,16 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
           return this._updatingQPChanged(map[prop]);
         }
       }
-    };
+    });
+  },
+
+  /**
+    @private
+
+    @property _qp
+  */
+  _qp: computed(function() {
+    return this.router._getQPMeta(this.fullRouteName);
   }),
 
   /**
@@ -289,6 +299,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
 
     let qps = get(this, '_qp.qps');
 
+    // Create an array of paths that correspond to the handler and param put together
     let namePaths = new Array(names.length);
     for (let a = 0; a < names.length; ++a) {
       namePaths[a] = `${handlerInfo.name}.${names[a]}`;
@@ -296,10 +307,15 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
 
     for (let i = 0; i < qps.length; ++i) {
       let qp = qps[i];
+
+      // If the query param's scope is the 'model', then store the namePaths to be used
+      // in the cache key for this QP.
       if (qp.scope === 'model') {
+        console.log('NAME PATHS STORING', namePaths);
         qp.parts = namePaths;
+      } else {
+        console.log('NAME PATHS NOT STORING', namePaths);
       }
-      qp.prefix = qp.ctrl;
     }
   },
 
@@ -374,13 +390,8 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
 
     let transition = this.router.router.activeTransition;
     let state = transition ? transition.state : this.router.router.state;
-
-    let params = {};
     let fullName = getEngineRouteName(getOwner(this), name);
-
-    assign(params, state.params[fullName]);
-
-    assign(params, getQueryParamsFor(route, state));
+    let params = assign({}, state.params[fullName], getQueryParamsFor(route, state));
 
     return params;
   },
@@ -792,9 +803,12 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
     },
 
     finalizeQueryParamChange(params, finalParams, transition) {
-      if (this.routeName !== 'application') { return true; }
+      // We only want to finalize the query param changes once, so we do it in
+      // the application route.
+      if (this.fullRouteName !== 'application') { return true; }
 
-      // Transition object is absent for intermediate transitions.
+      // Transition object is absent for intermediate transitions, so we don't
+      // want to finalize the QP changes yet as more may occur.
       if (!transition) { return; }
 
       let handlerInfos = transition.state.handlerInfos;
@@ -802,8 +816,6 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
       let qpMeta = router._queryParamsFor(handlerInfos[handlerInfos.length - 1].name);
       let changes = router._qpUpdates;
       let replaceUrl;
-
-      stashParamNames(router, handlerInfos);
 
       for (let i = 0; i < qpMeta.qps.length; ++i) {
         let qp = qpMeta.qps[i];
@@ -872,7 +884,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
         finalizedController._qpDelegate = get(routeQpMeta, 'states.active');
       });
 
-      router._qpUpdates = null;
+      router._qpUpdates = new EmptyObject();
     }
   },
 
@@ -1190,6 +1202,12 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
     }
   },
 
+  postInit(name) {
+    this.routeName = name;
+    this.fullRouteName = getEngineRouteName(getOwner(this), name);
+    this._storeQPMeta();
+  },
+
   /**
     This hook is the entry point for router.js
 
@@ -1208,15 +1226,15 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
       controller = definedController;
     }
 
+    let queryParams = get(this, '_qp');
+
     // Assign the route's controller so that it can more easily be
     // referenced in action handlers. Side effects. Side effects everywhere.
     if (!this.controller) {
-      let propNames = get(this, '_qp.propertyNames');
+      let propNames = queryParams.propertyNames;
       addQueryParamsObservers(controller, propNames);
       this.controller = controller;
     }
-
-    let queryParams = get(this, '_qp');
 
     let states = queryParams.states;
     if (transition) {
@@ -1231,7 +1249,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
         let aQp = queryParams.map[prop];
 
         aQp.values = params;
-        let cacheKey = calculateCacheKey(aQp.prefix, aQp.parts, aQp.values);
+        let cacheKey = calculateCacheKey(aQp.controllerName, aQp.parts, aQp.values);
 
         if (cache) {
           let value = cache.lookup(cacheKey, prop, aQp.undecoratedDefaultValue);
@@ -1262,7 +1280,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
   _qpChanged(prop, value, qp) {
     if (!qp) { return; }
 
-    let cacheKey = calculateCacheKey(qp.prefix || '', qp.parts, qp.values);
+    let cacheKey = calculateCacheKey(qp.controllerName, qp.parts, qp.values);
 
     // Update model-dep cache
     let cache = this._bucketCache;
@@ -2198,8 +2216,7 @@ function buildRenderOptions(route, namePassed, isDefaultRender, _name, options) 
 function getFullQueryParams(router, state) {
   if (state.fullQueryParams) { return state.fullQueryParams; }
 
-  state.fullQueryParams = {};
-  assign(state.fullQueryParams, state.queryParams);
+  state.fullQueryParams = assign({}, state.queryParams);
 
   let targetRouteName = state.handlerInfos[state.handlerInfos.length - 1].name;
   router._deserializeQueryParams(targetRouteName, state.fullQueryParams);
@@ -2208,9 +2225,7 @@ function getFullQueryParams(router, state) {
 
 function getQueryParamsFor(route, state) {
   state.queryParamsFor = state.queryParamsFor || {};
-  let name = route.routeName;
-
-  name = getEngineRouteName(getOwner(route), name);
+  let name = route.fullRouteName;
 
   if (state.queryParamsFor[name]) { return state.queryParamsFor[name]; }
 
@@ -2219,8 +2234,7 @@ function getQueryParamsFor(route, state) {
   let params = state.queryParamsFor[name] = {};
 
   // Copy over all the query params for this route/controller into params hash.
-  let qpMeta = get(route, '_qp');
-  let qps = qpMeta.qps;
+  let qps = get(route, '_qp.qps');
   for (let i = 0; i < qps.length; ++i) {
     // Put deserialized qp on params hash.
     let qp = qps[i];
@@ -2238,6 +2252,7 @@ function copyDefaultValue(value) {
   if (Array.isArray(value)) {
     return emberA(value.slice());
   }
+
   return value;
 }
 

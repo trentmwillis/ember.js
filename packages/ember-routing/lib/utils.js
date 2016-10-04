@@ -5,13 +5,7 @@ import { Error as EmberError } from 'ember-metal';
 const ALL_PERIODS_REGEX = /\./g;
 
 export function routeArgs(targetRouteName, models, queryParams) {
-  let args = [];
-  if (typeof targetRouteName === 'string') {
-    args.push('' + targetRouteName);
-  }
-  args.push.apply(args, models);
-  args.push({ queryParams: queryParams });
-  return args;
+  return [targetRouteName, ...models, { queryParams }];
 }
 
 export function getActiveTargetName(router) {
@@ -74,15 +68,25 @@ function _calculateCacheValuePrefix(prefix, part) {
 }
 
 /*
-  Stolen from Controller
+  Calculates a cache key value from a prefix, sub-key "parts", and values for
+  those sub-keys.
+
+  @method calculateCacheKey
+  @param {String} prefix
+  @param {Array<String>} parts
+  @param {Object} values
+  @return {String}
+  @private
 */
 export function calculateCacheKey(prefix, _parts, values) {
   let parts = _parts || [];
   let suffixes = '';
+
   for (let i = 0; i < parts.length; ++i) {
     let part = parts[i];
     let cacheValuePrefix = _calculateCacheValuePrefix(prefix, part);
     let value;
+
     if (values) {
       if (cacheValuePrefix && cacheValuePrefix in values) {
         let partRemovedPrefix = (part.indexOf(cacheValuePrefix) === 0) ? part.substr(cacheValuePrefix.length + 1) : part;
@@ -91,8 +95,10 @@ export function calculateCacheKey(prefix, _parts, values) {
         value = get(values, part);
       }
     }
+
     suffixes += '::' + part + ':' + value;
   }
+
   return prefix + suffixes.replace(ALL_PERIODS_REGEX, '-');
 }
 

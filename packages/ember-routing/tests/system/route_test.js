@@ -331,6 +331,11 @@ QUnit.test('paramsFor considers an engine\'s mountPoint', function(assert) {
   expect(2);
 
   let router = {
+    _getQPMeta() {
+      return {
+        qps: []
+      };
+    },
     _deserializeQueryParams() {},
     router: {
       state: {
