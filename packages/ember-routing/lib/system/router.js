@@ -651,33 +651,9 @@ const EmberRouter = EmberObject.extend(Evented, {
   },
 
   _serializeQueryParams(targetRouteName, queryParams) {
-    let groupedByUrlKey = {};
-
     forEachQueryParam(this, targetRouteName, queryParams, function(key, value, qp) {
-      let urlKey = qp.urlKey;
-      if (!groupedByUrlKey[urlKey]) {
-        groupedByUrlKey[urlKey] = [];
-      }
-      groupedByUrlKey[urlKey].push({
-        qp: qp,
-        value: value
-      });
-      delete queryParams[key];
+      queryParams[key] = qp.route.serializeQueryParam(value, qp.urlKey, qp.type);
     });
-
-    for (let key in groupedByUrlKey) {
-      let qps = groupedByUrlKey[key];
-
-      let qp1 = qps[0].qp;
-      let qp1Name = `${qp1.controllerName}:${qp1.prop}`;
-
-      let qp2 = qps[1] && qps[1].qp || {};
-      let qp2Name = `${qp2.controllerName}:${qp2.prop}`;
-
-      assert(`You're not allowed to have more than one controller property map to the same query param key, but both \`${qp1Name}\` and \`${qp2Name}\` map to \`${qp1.urlKey}\`. You can fix this by mapping one of the controller properties to a different query param key via the \`as\` config option, e.g. \`${qp1.prop}: { as: \'other-${qp1.prop}\' }\``, qps.length <= 1);
-
-      queryParams[qp1.urlKey] = qp1.route.serializeQueryParam(qps[0].value, qp1.urlKey, qp1.type);
-    }
   },
 
   _deserializeQueryParams(targetRouteName, queryParams) {
@@ -763,12 +739,32 @@ const EmberRouter = EmberObject.extend(Evented, {
 
     let routerjs = this.router;
     let recogHandlerInfos = routerjs.recognizer.handlersFor(leafRouteName);
+    let qpsByUrlKey = {};
 
     for (let i = 0; i < recogHandlerInfos.length; ++i) {
       let recogHandler = recogHandlerInfos[i];
       let qpMeta = this._getQPMeta(recogHandler.handler);
 
       if (!qpMeta) { continue; }
+
+      // Check each qp to verify it doesn't collide with another qp
+      let currentQPs = qpMeta.qps;
+
+      for (let j = 0; j < currentQPs.length; j++) {
+        let qp = currentQPs[j];
+
+        if (qpsByUrlKey[qp.urlKey]) {
+          let qp1 = qpsByUrlKey[qp.urlKey];
+          let qp1Name = `${qp1.controllerName}:${qp1.prop}`;
+
+          let qp2 = qp;
+          let qp2Name = `${qp2.controllerName}:${qp2.prop}`;
+
+          assert(`You're not allowed to have more than one controller property map to the same query param key, but both \`${qp1Name}\` and \`${qp2Name}\` map to \`${qp1.urlKey}\`. You can fix this by mapping one of the controller properties to a different query param key via the \`as\` config option, e.g. \`${qp1.prop}: { as: \'other-${qp1.prop}\' }\``, false);
+        }
+
+        qpsByUrlKey[qp.urlKey] = qp;
+      }
 
       assign(map, qpMeta.map);
       qps.push(...qpMeta.qps);
