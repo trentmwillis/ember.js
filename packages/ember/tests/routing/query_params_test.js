@@ -934,12 +934,6 @@ moduleFor('Query Params - main', class extends QueryParamTestCase {
       this.transitionTo({ queryParams: { foo: 'borf' } });
       this.assertCurrentPath('/?foo=borf', 'shorthand supported');
 
-      this.transitionTo({ queryParams: { 'index:foo': 'blaf' } });
-      this.assertCurrentPath('/?foo=blaf', 'longform supported');
-
-      this.transitionTo({ queryParams: { 'index:foo': false } });
-      this.assertCurrentPath('/?foo=false', 'longform supported (bool)');
-
       this.transitionTo({ queryParams: { foo: false } });
       this.assertCurrentPath('/?foo=false', 'shorhand supported (bool)');
     });
@@ -955,12 +949,6 @@ moduleFor('Query Params - main', class extends QueryParamTestCase {
     return this.visitAndAssert('/').then(() => {
       this.transitionTo({ queryParams: { foo: 'borf' } });
       this.assertCurrentPath('/?foo=borf', 'shorthand supported');
-
-      this.transitionTo({ queryParams: { 'index:foo': 'blaf' } });
-      this.assertCurrentPath('/?foo=blaf', 'longform supported');
-
-      this.transitionTo({ queryParams: { 'index:foo': false } });
-      this.assertCurrentPath('/?foo=false', 'longform supported (bool)');
 
       this.transitionTo({ queryParams: { foo: false } });
       this.assertCurrentPath('/?foo=false', 'shorhand supported (bool)');
@@ -1054,17 +1042,15 @@ moduleFor('Query Params - main', class extends QueryParamTestCase {
   }
 
   ['@test (de)serialization: arrays'](assert) {
-    assert.expect(4);
+    assert.expect(3);
 
     this.setSingleQPController('index', 'foo', [1]);
 
     return this.visitAndAssert('/').then(() => {
       this.transitionTo({ queryParams: { foo: [2, 3] } });
       this.assertCurrentPath('/?foo=%5B2%2C3%5D', 'shorthand supported');
-      this.transitionTo({ queryParams: { 'index:foo': [4, 5] } });
-      this.assertCurrentPath('/?foo=%5B4%2C5%5D', 'longform supported');
       this.transitionTo({ queryParams: { foo: [] } });
-      this.assertCurrentPath('/?foo=%5B%5D', 'longform supported');
+      this.assertCurrentPath('/?foo=%5B%5D', 'empty array supported');
     });
   }
 

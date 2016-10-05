@@ -204,7 +204,6 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
       let type = desc.type || typeOf(defaultValue);
 
       let defaultValueSerialized = this.serializeQueryParam(defaultValue, urlKey, type);
-      let scopedPropertyName = `${controllerName}:${propName}`;
       let qp = {
         undecoratedDefaultValue: get(controllerProto, propName),
         defaultValue: defaultValue,
@@ -214,7 +213,6 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
         type: type,
         urlKey: urlKey,
         prop: propName,
-        scopedPropertyName: scopedPropertyName,
         ctrl: controllerName,
         route: this,
         parts: parts, // provided later when stashNames is called if 'model' scope
@@ -223,7 +221,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
         prefix: ''
       };
 
-      map[propName] = map[urlKey] = map[scopedPropertyName] = qp;
+      map[propName] = map[urlKey] = qp;
       qps.push(qp);
       propertyNames.push(propName);
     }
@@ -310,7 +308,7 @@ let Route = EmberObject.extend(ActionHandler, Evented, {
   */
   _activeQPChanged(qp, value) {
     let router = this.router;
-    router._activeQPChanged(qp.scopedPropertyName, value);
+    router._activeQPChanged(qp.urlKey, value);
   },
 
   /**
