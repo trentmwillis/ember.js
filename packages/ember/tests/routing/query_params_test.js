@@ -985,9 +985,9 @@ QUnit.test('transitionTo supports query params', function() {
 
   run(router, 'transitionTo', { queryParams: { foo: 'borf' } });
   equal(router.get('location.path'), '/?foo=borf', 'shorthand supported');
-  run(router, 'transitionTo', { queryParams: { 'index:foo': 'blaf' } });
+  run(router, 'transitionTo', { queryParams: { 'foo': 'blaf' } });
   equal(router.get('location.path'), '/?foo=blaf', 'longform supported');
-  run(router, 'transitionTo', { queryParams: { 'index:foo': false } });
+  run(router, 'transitionTo', { queryParams: { 'foo': false } });
   equal(router.get('location.path'), '/?foo=false', 'longform supported (bool)');
   run(router, 'transitionTo', { queryParams: { foo: false } });
   equal(router.get('location.path'), '/?foo=false', 'shorhand supported (bool)');
@@ -1006,9 +1006,9 @@ QUnit.test('transitionTo supports query params (multiple)', function() {
 
   run(router, 'transitionTo', { queryParams: { foo: 'borf' } });
   equal(router.get('location.path'), '/?foo=borf', 'shorthand supported');
-  run(router, 'transitionTo', { queryParams: { 'index:foo': 'blaf' } });
+  run(router, 'transitionTo', { queryParams: { 'foo': 'blaf' } });
   equal(router.get('location.path'), '/?foo=blaf', 'longform supported');
-  run(router, 'transitionTo', { queryParams: { 'index:foo': false } });
+  run(router, 'transitionTo', { queryParams: { 'foo': false } });
   equal(router.get('location.path'), '/?foo=false', 'longform supported (bool)');
   run(router, 'transitionTo', { queryParams: { foo: false } });
   equal(router.get('location.path'), '/?foo=false', 'shorhand supported (bool)');
@@ -1114,7 +1114,7 @@ QUnit.test('(de)serialization: arrays', function() {
 
   run(router, 'transitionTo', { queryParams: { foo: [2, 3] } });
   equal(router.get('location.path'), '/?foo=%5B2%2C3%5D', 'shorthand supported');
-  run(router, 'transitionTo', { queryParams: { 'index:foo': [4, 5] } });
+  run(router, 'transitionTo', { queryParams: { 'foo': [4, 5] } });
   equal(router.get('location.path'), '/?foo=%5B4%2C5%5D', 'longform supported');
   run(router, 'transitionTo', { queryParams: { foo: [] } });
   equal(router.get('location.path'), '/?foo=%5B%5D', 'longform supported');

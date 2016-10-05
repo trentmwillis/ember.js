@@ -667,9 +667,16 @@ const EmberRouter = EmberObject.extend(Evented, {
 
     for (let key in groupedByUrlKey) {
       let qps = groupedByUrlKey[key];
-      assert(`You're not allowed to have more than one controller property map to the same query param key, but both \`${qps[0].qp.scopedPropertyName}\` and \`${qps[1] ? qps[1].qp.scopedPropertyName : ''}\` map to \`${qps[0].qp.urlKey}\`. You can fix this by mapping one of the controller properties to a different query param key via the \`as\` config option, e.g. \`${qps[0].qp.prop}: { as: \'other-${qps[0].qp.prop}\' }\``, qps.length <= 1);
-      let qp = qps[0].qp;
-      queryParams[qp.urlKey] = qp.route.serializeQueryParam(qps[0].value, qp.urlKey, qp.type);
+
+      let qp1 = qps[0].qp;
+      let qp1Name = `${qp1.controllerName}:${qp1.prop}`;
+
+      let qp2 = qps[1] && qps[1].qp || {};
+      let qp2Name = `${qp2.controllerName}:${qp2.prop}`;
+
+      assert(`You're not allowed to have more than one controller property map to the same query param key, but both \`${qp1Name}\` and \`${qp2Name}\` map to \`${qp1.urlKey}\`. You can fix this by mapping one of the controller properties to a different query param key via the \`as\` config option, e.g. \`${qp1.prop}: { as: \'other-${qp1.prop}\' }\``, qps.length <= 1);
+
+      queryParams[qp1.urlKey] = qp1.route.serializeQueryParam(qps[0].value, qp1.urlKey, qp1.type);
     }
   },
 
@@ -696,8 +703,6 @@ const EmberRouter = EmberObject.extend(Evented, {
 
     let queryParams = {};
 
-    this._processActiveTransitionQueryParams(targetRouteName, models, queryParams, _queryParams);
-
     assign(queryParams, _queryParams);
     this._prepareQueryParams(targetRouteName, models, queryParams);
 
@@ -707,27 +712,6 @@ const EmberRouter = EmberObject.extend(Evented, {
     didBeginTransition(transition, this);
 
     return transition;
-  },
-
-  _processActiveTransitionQueryParams(targetRouteName, models, queryParams, _queryParams) {
-    // merge in any queryParams from the active transition which could include
-    // queryParams from the url on initial load.
-    if (!this.router.activeTransition) { return; }
-
-    var unchangedQPs = {};
-    var qpUpdates = this._qpUpdates;
-    for (var key in this.router.activeTransition.queryParams) {
-      if (!qpUpdates[key]) {
-        unchangedQPs[key] = this.router.activeTransition.queryParams[key];
-      }
-    }
-
-    // We need to fully scope queryParams so that we can create one object
-    // that represents both pased in queryParams and ones that aren't changed
-    // from the active transition.
-    this._fullyScopeQueryParams(targetRouteName, models, _queryParams);
-    this._fullyScopeQueryParams(targetRouteName, models, unchangedQPs);
-    assign(queryParams, unchangedQPs);
   },
 
   /**
@@ -793,32 +777,6 @@ const EmberRouter = EmberObject.extend(Evented, {
     return this._qpCache[leafRouteName];
   },
 
-  _fullyScopeQueryParams(leafRouteName, contexts, queryParams) {
-    var state = calculatePostTransitionState(this, leafRouteName, contexts);
-    var handlerInfos = state.handlerInfos;
-
-    for (var i = 0, len = handlerInfos.length; i < len; ++i) {
-      var qpMeta = this._getQPMeta(handlerInfos[i].name);
-
-      if (!qpMeta) { continue; }
-
-      for (var j = 0, qpLen = qpMeta.qps.length; j < qpLen; ++j) {
-        var qp = qpMeta.qps[j];
-
-        var presentProp = qp.prop in queryParams && qp.prop ||
-                          qp.scopedPropertyName in queryParams && qp.scopedPropertyName ||
-                          qp.urlKey in queryParams && qp.urlKey;
-
-        if (presentProp) {
-          if (presentProp !== qp.scopedPropertyName) {
-            queryParams[qp.scopedPropertyName] = queryParams[presentProp];
-            delete queryParams[presentProp];
-          }
-        }
-      }
-    }
-  },
-
   /**
     Adds ("hydrates") unsupplied query params into the passed in hash, based on
     their values that currently exist in the bucket cache.
@@ -845,18 +803,18 @@ const EmberRouter = EmberObject.extend(Evented, {
       for (let j = 0, qpLen = qpMeta.qps.length; j < qpLen; ++j) {
         let qp = qpMeta.qps[j];
 
-        let presentProp = qp.prop in queryParams && qp.prop ||
-                          qp.scopedPropertyName in queryParams && qp.scopedPropertyName ||
-                          qp.urlKey in queryParams && qp.urlKey;
-
-        if (presentProp) {
-          if (presentProp !== qp.scopedPropertyName) {
-            queryParams[qp.scopedPropertyName] = queryParams[presentProp];
-            delete queryParams[presentProp];
+        // Check if the param is already in the query params hash
+        let qpIsPresent = qp.urlKey in queryParams;
+        if (!qpIsPresent) {
+          let activeTransition = this.router.activeTransition;
+          if (activeTransition && qp.urlKey in activeTransition.queryParams) {
+            // Use the active transition's param if it's available
+            queryParams[qp.urlKey] = activeTransition.queryParams[qp.urlKey];
+          } else {
+            // Otherwise rehydrate any previously cached values
+            let cacheKey = calculateCacheKey(qp.controllerName, qp.parts, state.params);
+            queryParams[qp.urlKey] = appCache.lookup(cacheKey, qp.prop, qp.defaultValue);
           }
-        } else {
-          let cacheKey = calculateCacheKey(qp.controllerName, qp.parts, state.params);
-          queryParams[qp.scopedPropertyName] = appCache.lookup(cacheKey, qp.prop, qp.defaultValue);
         }
       }
     }
